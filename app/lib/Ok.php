@@ -24,6 +24,11 @@ class Ok
     private $publicKey;
 
     /**
+     * @var string
+     */
+    private $apiUrl = 'https://api.ok.ru/fb.do';
+
+    /**
      * Ok constructor.
      * @param string $accessToken
      * @param string $privateKey
@@ -37,83 +42,94 @@ class Ok
     }
 
     /**
-     * @param string$url
+     * @param int $groupId
+     * @param string $message
+     * @param array $attachments
+     */
+    public function postGroupWall(int $groupId, string $message, array $attachments)
+    {
+        $attachData = [];
+        foreach ($attachments as $type => $attachment) {
+            switch ($type) {
+                case 'text':
+                    $attachData[] = [
+                        'type' => 'text',
+                        'text'   => $attachment
+                    ];
+
+                    break;
+                case 'link':
+                    $attachData[] = [
+                        'type' => 'link',
+                        'url'   => $attachment
+                    ];
+
+                    break;
+            }
+        }
+
+        $params = [
+            'application_key' =>$this->publicKey,
+            'method'          => 'mediatopic.post',
+            'gid'             => $groupId,
+            'type'            => 'GROUP_THEME',
+            'attachment'      => '{"media": ' . json_encode($attachData) . '}',
+            'format'          => 'json'
+        ];
+
+        $sig                    = md5($this->arInStr($params) . md5("{$this->accessToken}{$this->privateKey}"));
+        $params['access_token'] = $this->accessToken;
+        $params['sig']          = $sig;
+        $result                 = json_decode($this->getUrl($this->apiUrl, 'POST', $params), true);
+
+        if (isset($result['error_code']) && $result['error_code'] == 5000) {
+            $this->getUrl($this->apiUrl, 'POST', $params);
+        }
+    }
+
+    /**
+     * @param $url
      * @param string $type
      * @param array $params
      * @param int $timeout
-     * @param bool $image
-     * @param bool $decode
-     * @return bool|string|null
+     * @return bool|string
      */
-    private function getUrl(string $url, string $type = 'GET', array $params = [], int $timeout = 30, bool $image = false, bool $decode = true)
+    private function getUrl($url, $type = 'GET', $params = [], $timeout = 30)
     {
         if ($ch = curl_init()) {
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_HEADER, false);
-
-            if ('POST' === (string)$type) {
-                curl_setopt($ch, CURLOPT_POST, true);
-
-                if ($image) {
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
-                } elseif ($decode) {
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, urldecode(http_build_query($params)));
-                } else {
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
-                }
+            if ($type == 'POST') {
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, urldecode(http_build_query($params)));
             }
-
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
-            curl_setopt($ch, CURLOPT_USERAGENT, 'PHP Bot');
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-
+            curl_setopt($ch, CURLOPT_USERAGENT, 'PHP Bot (http://bazarbratsk.ru)');
             $data = curl_exec($ch);
-
             curl_close($ch);
-
             return $data;
-
         }
 
-        return null;
+        return '{}';
     }
 
     /**
-     * @param int $groupId
-     * @param string $message
-     * @return bool
+     * @param array $params
+     * @return string
      */
-    public function postGroupWall(int $groupId, string $message): bool
+    private function arInStr(array $params)
     {
-        $message = str_replace("\n", "\\n", $message);
+        ksort($params);
 
-        $attachment = ['media' => [
-            'type' => 'text',
-            'text' => $message
-        ]];
-
-        $params = [
-            'application_key' => $this->publicKey,
-            'method'          => 'mediatopic.post',
-            'gid'             => $groupId,
-            'format'          => 'json',
-            'attachment'      => json_encode($attachment),
-            'type'            => 'GROUP_THEME',
-        ];
-
-        $sig = md5(http_build_query($params) . md5($this->accessToken . $this->privateKey));
-
-        $params['access_token'] = $this->accessToken;
-        $params['sig']          = $sig;
-
-        $response = json_decode($this->getUrl('https://api.ok.ru/fb.do', 'POST', $params, 30, false, false), true);
-
-        if (isset($response['error_code'])) {
-            exit();
+        $string = '';
+        foreach ($params as $key => $val) {
+            if (is_array($val)) {
+                $string .= $key . '=' . $this->arInStr($val);
+            } else {
+                $string .= $key . '=' . $val;
+            }
         }
-
-        return true;
+        return $string;
     }
 }
