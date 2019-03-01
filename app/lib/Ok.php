@@ -42,11 +42,56 @@ class Ok
     }
 
     /**
+     * @see https://apiok.ru/dev/methods/rest/mediatopic/mediatopic.post
      * @param int $groupId
-     * @param string $message
+     * @param array $data
      * @param array $attachments
      */
-    public function postGroupWall(int $groupId, string $message, array $attachments)
+    public function postGroupWall(int $groupId, array $data, array $attachments)
+    {
+        $params = [
+            'application_key' =>$this->publicKey,
+            'method'          => 'mediatopic.post',
+            'gid'             => $groupId,
+            'type'            => 'GROUP_THEME',
+            'attachment'      => json_encode(array_merge([
+                'media' => $this->prepareMedia($attachments),
+            ], $this->prepareData($data))),
+            'format'          => 'json'
+        ];
+
+        $sig                    = md5($this->arInStr($params) . md5("{$this->accessToken}{$this->privateKey}"));
+        $params['access_token'] = $this->accessToken;
+        $params['sig']          = $sig;
+        $result                 = json_decode($this->getUrl($this->apiUrl, 'POST', $params), true);
+
+        if (isset($result['error_code']) && 5000 === (int)$result['error_code']) {
+            $this->getUrl($this->apiUrl, 'POST', $params);
+        }
+    }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    private function prepareData(array $data): array
+    {
+        $result = [];
+
+        foreach ($data as $field => $datum) {
+            if (in_array($field, ['publishAt', 'onBehalfOfGroup', 'disableComments'])) {
+                $result[$field] = $datum;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array $attachments
+     * @return array
+     */
+    private function prepareMedia(array $attachments)
     {
         $attachData = [];
         foreach ($attachments as $type => $attachment) {
@@ -68,23 +113,7 @@ class Ok
             }
         }
 
-        $params = [
-            'application_key' =>$this->publicKey,
-            'method'          => 'mediatopic.post',
-            'gid'             => $groupId,
-            'type'            => 'GROUP_THEME',
-            'attachment'      => '{"media": ' . json_encode($attachData) . '}',
-            'format'          => 'json'
-        ];
-
-        $sig                    = md5($this->arInStr($params) . md5("{$this->accessToken}{$this->privateKey}"));
-        $params['access_token'] = $this->accessToken;
-        $params['sig']          = $sig;
-        $result                 = json_decode($this->getUrl($this->apiUrl, 'POST', $params), true);
-
-        if (isset($result['error_code']) && $result['error_code'] == 5000) {
-            $this->getUrl($this->apiUrl, 'POST', $params);
-        }
+        return $attachData;
     }
 
     /**
