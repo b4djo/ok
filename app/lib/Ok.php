@@ -46,6 +46,7 @@ class Ok
      * @param int $groupId
      * @param array $data
      * @param array $attachments
+     * @return bool|mixed|string
      */
     public function postGroupWall(int $groupId, array $data, array $attachments)
     {
@@ -66,8 +67,10 @@ class Ok
         $result                 = json_decode($this->getUrl($this->apiUrl, 'POST', $params), true);
 
         if (isset($result['error_code']) && 5000 === (int)$result['error_code']) {
-            $this->getUrl($this->apiUrl, 'POST', $params);
+            $result = $this->getUrl($this->apiUrl, 'POST', $params);
         }
+
+        return $result;
     }
 
     /**
