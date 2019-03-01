@@ -1,6 +1,6 @@
 <?php
 
-namespace badjo\ok\app\lib;
+namespace b4djo\ok\app\lib;
 
 /**
  * Class Ok
